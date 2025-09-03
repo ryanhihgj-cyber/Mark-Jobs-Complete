@@ -1,27 +1,18 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const axios = require('axios');
-require('dotenv').config();
-
-const app = express();
-app.use(bodyParser.json());
-
 app.post('/mark-complete', async (req, res) => {
   try {
-    const payload = req.body;
+    const payload = JSON.parse(req.body.payload);
+    const action = payload.actions[0];
+    const rowIndex = parseInt(action.value); // This is the row index from your button
+    const jobName = payload.message.blocks[rowIndex]?.text?.text?.match(/\*Job:\* (.+)/)?.[1];
 
-    // Forward to your Google Apps Script Web App
-    const response = await axios.post(process.env.MARK_COMPLETE_URL, payload);
+    if (!jobName) throw new Error("Job name not found");
 
-    res.status(200).send(response.data);
+    const response = await axios.post(process.env.MARK_COMPLETE_URL, { jobName });
+
+    res.status(200).send(); // Respond to Slack to avoid timeout
   } catch (error) {
-    console.error('Error forwarding to Apps Script:', error);
-    res.status(500).send('Failed to process request');
+    console.error('Error processing Slack interaction:', error);
+    res.status(500).send();
   }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Mark Complete server running on port ${PORT}`);
 });
 
