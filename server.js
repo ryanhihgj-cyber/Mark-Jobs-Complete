@@ -11,15 +11,9 @@ app.post('/mark-complete', async (req, res) => {
   try {
     const payload = JSON.parse(req.body.payload);
     const action = payload.actions[0];
-    const rowIndex = parseInt(action.value); // This is the row index from your button
-    const jobBlock = payload.message.blocks.find(block =>
-      block.type === "section" && block.accessory?.action_id === "mark_complete" && block.accessory?.value === action.value
-    );
-
-    const jobNameMatch = jobBlock?.text?.text?.match(/\*Job:\* (.+)/);
-    const jobName = jobNameMatch ? jobNameMatch[1] : null;
-
+    const jobName = action.value;
     if (!jobName) throw new Error("Job name not found");
+
 
     const response = await axios.post(process.env.MARK_COMPLETE_URL, { jobName });
 
