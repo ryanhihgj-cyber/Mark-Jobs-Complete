@@ -13,11 +13,11 @@ app.post('/mark-complete', async (req, res) => {
     console.log("Slack payload received:", payload);
 
     const action = payload.actions[0];
-    const jobName = action.value;
+    const { jobName, jobTitle } = JSON.parse(action.value);
 
     if (!jobName) throw new Error("Job name not found");
 
-    const response = await axios.post(process.env.MARK_COMPLETE_URL, { jobName });
+    await axios.post(process.env.MARK_COMPLETE_URL, { jobName, jobTitle });
 
     res.status(200).send(); // Respond to Slack to avoid timeout
   } catch (error) {
