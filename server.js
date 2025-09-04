@@ -10,23 +10,30 @@ app.use(bodyParser.json());
 app.post('/mark-complete', async (req, res) => {
   try {
     const payload = JSON.parse(req.body.payload);
-    console.log("Slack payload received:", payload);
-
     const action = payload.actions[0];
+
+    // ✅ Parse jobName and jobTitle from button value
     const { jobName, jobTitle } = JSON.parse(action.value);
 
-    if (!jobName) throw new Error("Job name not found");
+    console.log("✅ Sending to Apps Script:", { jobName, jobTitle });
 
-    await axios.post(process.env.MARK_COMPLETE_URL, { jobName, jobTitle });
+    // ✅ Send to Google Apps Script endpoint
+    const response = await axios.post(process.env.MARK_COMPLETE_URL, {
+      jobName,
+      jobTitle
+    });
 
-    res.status(200).send(); // Respond to Slack to avoid timeout
+    console.log("📬 Apps Script response:", response.data);
+
+    // ✅ Respond to Slack to avoid timeout
+    res.status(200).send();
   } catch (error) {
-    console.error('Error processing Slack interaction:', error);
+    console.error('❌ Error processing Slack interaction:', error.message);
     res.status(500).send();
   }
 });
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Mark Complete server running on port ${PORT}`);
+  console.log(`🚀 Mark Complete server running on port ${PORT}`);
 });
