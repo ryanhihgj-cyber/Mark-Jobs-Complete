@@ -3,17 +3,19 @@ const bodyParser = require('body-parser');
 const axios = require('axios');
 require('dotenv').config();
 
-const app = express(); // ✅ This was missing
+const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
 app.post('/mark-complete', async (req, res) => {
   try {
     const payload = JSON.parse(req.body.payload);
+    console.log("Slack payload received:", payload);
+
     const action = payload.actions[0];
     const jobName = action.value;
-    if (!jobName) throw new Error("Job name not found");
 
+    if (!jobName) throw new Error("Job name not found");
 
     const response = await axios.post(process.env.MARK_COMPLETE_URL, { jobName });
 
