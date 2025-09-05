@@ -12,12 +12,11 @@ app.post('/mark-complete', async (req, res) => {
     const payload = JSON.parse(req.body.payload);
     const action = payload.actions[0];
 
-    // ✅ Parse jobName and jobTitle from button value
     const { jobName, jobTitle } = JSON.parse(action.value);
 
-    console.log("✅ Sending to Apps Script:", { jobName, jobTitle });
+    console.log("✅ Received Slack button click:", { jobName, jobTitle });
 
-    // ✅ Send to Google Apps Script endpoint
+    // Send to Google Apps Script
     const response = await axios.post(process.env.MARK_COMPLETE_URL, {
       jobName,
       jobTitle
@@ -25,7 +24,7 @@ app.post('/mark-complete', async (req, res) => {
 
     console.log("📬 Apps Script response:", response.data);
 
-    // ✅ Respond to Slack to avoid timeout
+    // Respond to Slack immediately
     res.status(200).send();
   } catch (error) {
     console.error('❌ Error processing Slack interaction:', error.message);
