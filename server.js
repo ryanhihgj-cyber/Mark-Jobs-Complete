@@ -1,94 +1,95 @@
-function doPost(e) {
+const express = require('express');
+const bodyParser = require('body-parser');
+const axios = require('axios');
+require('dotenv').config();
+
+const app = express();
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+app.post('/slack/interactions', async (req, res) => {
   try {
-    const payload = JSON.parse(e.postData.contents);
-    const spreadsheetId = "1xqBWQlN6Y9vJ4gtAf2R0qGw6iwV3ZLjFK7UXWDCVpLY";
-    const sheetName = "Jobs List";
+    const payload = JSON.parse(req.body.payload);
+    const action = payload.actions?.[0];
 
-    // 🔹 Handle "Mark Complete" from Slack button
-    if (payload.jobName && payload.jobTitle) {
-      const jobName = payload.jobName;
-      const jobTitle = payload.jobTitle;
+    // 🔹 Handle "Mark Complete"
+    if (action?.action_id === 'mark_complete') {
+      const { jobName, jobTitle } = JSON.parse(action.value);
+      console.log("✅ Received Mark Complete:", { jobName, jobTitle });
 
-      const sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName(sheetName);
-      const data = sheet.getDataRange().getValues();
-      const headers = data[0];
+      const response = await axios.post(process.env.MARK_COMPLETE_URL, {
+        jobName,
+        jobTitle
+      });
 
-      const jobIndex = headers.indexOf("Job");
-      const titleIndex = headers.indexOf("Title");
-      const markedCompleteIndex = headers.indexOf("Marked Complete");
-      const percentCompleteIndex = headers.indexOf("Percent Complete");
-
-      for (let i = 1; i < data.length; i++) {
-        const rowJob = data[i][jobIndex];
-        const rowTitle = data[i][titleIndex];
-
-        if (rowJob === jobName && rowTitle === jobTitle) {
-          sheet.getRange(i + 1, markedCompleteIndex + 1).setValue("TRUE");
-          sheet.getRange(i + 1, percentCompleteIndex + 1).setValue(100);
-          return ContentService.createTextOutput("✅ Job marked complete.");
-        }
-      }
-
-      return ContentService.createTextOutput("⚠️ Job not found.");
+      console.log("📬 Apps Script response:", response.data);
+      return res.status(200).send();
     }
 
-    // 🔹 Handle Slack button click to open modal
-    if (payload.type === "block_actions" && payload.actions[0].action_id === "change_end_date") {
+    // 🔹 Handle "Change End Date" button click
+    if (action?.action_id === 'change_end_date') {
       const triggerId = payload.trigger_id;
-      const value = JSON.parse(payload.actions[0].value); // { jobName, jobTitle, row }
+      const value = JSON.parse(action.value); // { jobName, jobTitle, row }
 
       const modalView = {
         trigger_id: triggerId,
         view: {
-          type: "modal",
-          callback_id: "submit_new_end_date",
-          title: { type: "plain_text", text: "Update End Date" },
-          submit: { type: "plain_text", text: "Save" },
-          close: { type: "plain_text", text: "Cancel" },
+          type: 'modal',
+          callback_id: 'submit_new_end_date',
+          title: { type: 'plain_text', text: 'Update End Date' },
+          submit: { type: 'plain_text', text: 'Save' },
+          close: { type: 'plain_text', text: 'Cancel' },
           private_metadata: JSON.stringify(value),
           blocks: [
             {
-              type: "input",
-              block_id: "new_end_date_block",
-              label: { type: "plain_text", text: "Select New End Date" },
+              type: 'input',
+              block_id: 'new_end_date_block',
+              label: { type: 'plain_text', text: 'Select New End Date' },
               element: {
-                type: "datepicker",
-                action_id: "new_end_date"
+                type: 'datepicker',
+                action_id: 'new_end_date'
               }
             }
           ]
         }
       };
 
-      UrlFetchApp.fetch("https://slack.com/api/views.open", {
-        method: "post",
-        contentType: "application/json",
-        headers: { Authorization: `Bearer ${SLACK_BOT_TOKEN}` },
-        payload: JSON.stringify(modalView)
+      await axios.post('https://slack.com/api/views.open', modalView, {
+        headers: {
+          Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+          'Content-Type': 'application/json'
+        }
       });
 
-      return ContentService.createTextOutput(""); // Slack expects 200 OK
+      return res.status(200).send();
     }
 
     // 🔹 Handle modal submission
-    if (payload.type === "view_submission" && payload.view.callback_id === "submit_new_end_date") {
-      const metadata = JSON.parse(payload.view.private_metadata); // { jobName, jobTitle, row }
+    if (payload.type === 'view_submission' && payload.view.callback_id === 'submit_new_end_date') {
+      const metadata = JSON.parse(payload.view.private_metadata);
       const selectedDate = payload.view.state.values.new_end_date_block.new_end_date.selected_date;
 
-      const sheet = SpreadsheetApp.openById(spreadsheetId).getSheetByName(sheetName);
-      const headers = sheet.getDataRange().getValues()[0];
-      const endIndex = headers.indexOf("End");
+      console.log("📅 New End Date Submitted:", { ...metadata, selectedDate });
 
-      const row = metadata.row + 1; // +1 for header offset
-      sheet.getRange(row, endIndex + 1).setValue(new Date(selectedDate));
+      // Send to Apps Script to update the sheet
+      const response = await axios.post(process.env.UPDATE_END_DATE_URL, {
+        ...metadata,
+        newEndDate: selectedDate
+      });
 
-      return ContentService.createTextOutput(JSON.stringify({ response_action: "clear" }))
-        .setMimeType(ContentService.MimeType.JSON);
+      console.log("📬 Apps Script response:", response.data);
+
+      return res.json({ response_action: 'clear' }); // Close modal
     }
 
-    return ContentService.createTextOutput("⚠️ No action matched.");
+    res.status(200).send();
   } catch (error) {
-    console.error("❌ Error in doPost:", error);
-    return ContentService.createTextOutput("❌ Error processing request.");
+    console.error('❌ Error handling Slack interaction:', error.message);
+    res.status(500).send();
   }
-}
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Slack interaction server running on port ${PORT}`);
+});
