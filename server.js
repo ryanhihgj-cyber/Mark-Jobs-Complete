@@ -7,6 +7,12 @@ const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+// 🔹 Wake-up route for uptime monitors
+app.get('/', (req, res) => {
+  res.status(200).send('✅ Server is awake');
+});
+
+// 🔹 Slack interaction handler
 app.post('/slack/interactions', async (req, res) => {
   try {
     const payload = JSON.parse(req.body.payload);
@@ -71,7 +77,6 @@ app.post('/slack/interactions', async (req, res) => {
 
       console.log("📅 New End Date Submitted:", { ...metadata, selectedDate });
 
-      // Send to Apps Script to update the sheet
       const response = await axios.post(process.env.UPDATE_END_DATE_URL, {
         ...metadata,
         newEndDate: selectedDate
